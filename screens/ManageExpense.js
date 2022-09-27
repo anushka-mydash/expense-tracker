@@ -4,6 +4,7 @@ import { useLayoutEffect, useContext, useState } from 'react'
 import IconButton from '../components/UI/IconButton'
 import ExpenseForm from '../components/ManageExpense/ExpenseForm';
 import LoadingOverlay from '../components/UI/LoadingOverlay';
+import ErrorOverlay from '../components/UI/ErrorOverlay';
 import { GlobalStyles } from '../constants/styles';
 import { ExpensesContext } from '../store/expensesContext'
 import { storeExpense, updateExpense, deleteExpense } from '../utils/api'
@@ -11,6 +12,7 @@ import { storeExpense, updateExpense, deleteExpense } from '../utils/api'
 export default function ManageExpense({ route, navigation }) {
   const expensesContext = useContext(ExpensesContext);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState();
 
   const editedExpenseId = route.params?.expenseId
   const isEditing = !!editedExpenseId;
@@ -19,9 +21,14 @@ export default function ManageExpense({ route, navigation }) {
 
   async function deleteExpenseHandler() {
     setIsLoading(true)
-    await deleteExpense(editedExpenseId);
-    expensesContext.deleteExpense(editedExpenseId)
-    navigation.goBack();
+    try {
+      await deleteExpense(editedExpenseId);
+      expensesContext.deleteExpense(editedExpenseId)
+      navigation.goBack();
+    } catch (error) {
+      setError('Could not delete expense - please try again.')
+      setIsLoading(false)
+    }
   }
 
   function cancelHandler() {
@@ -30,14 +37,20 @@ export default function ManageExpense({ route, navigation }) {
 
   async function confirmHandler(expenseData) {
     setIsLoading(true)
-    if (isEditing) {
-      expensesContext.updateExpense(editedExpenseId, expenseData)
-      await updateExpense(editedExpenseId, expenseData);
-    } else {
-      const id = await storeExpense(expenseData)
-      expensesContext.addExpense({ id: id, ...expenseData })
+    try {
+      if (isEditing) {
+        await updateExpense(editedExpenseId, expenseData);
+        expensesContext.updateExpense(editedExpenseId, expenseData)
+      } else {
+        const id = await storeExpense(expenseData)
+        expensesContext.addExpense({ id: id, ...expenseData })
+      }
+      navigation.goBack();
     }
-    navigation.goBack();
+    catch (error) {
+      setError('Could not save data - please try again.')
+      setIsLoading(false)
+    }
   }
 
   useLayoutEffect(() => {
@@ -45,6 +58,10 @@ export default function ManageExpense({ route, navigation }) {
       title: isEditing ? 'Edit Expense' : 'Add Expense'
     })
   }, [navigation, isEditing])
+
+  if (error && !isLoading) {
+    return <ErrorOverlay message={error} />
+  }
 
   if (isLoading) {
     return <LoadingOverlay />
